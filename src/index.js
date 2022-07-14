@@ -1,6 +1,18 @@
-import React from "react";
-import ReactDOM from "react-dom";
+// import React from "react";
+// import ReactDOM from "react-dom";
 
-const element = <h1 title="foo">Hello</h1>;
+// const element = <h1 title="foo">Hello</h1>;
+// const container = document.getElementById("root");
+// ReactDOM.render(element, container);
+
+import Didact from "./didact";
+
+/** @jsx Didact.createElement */
+const element = (
+  <div style="background: salmon">
+    <h1>Hello World</h1>
+    <h2 style="text-align:right">from Didact</h2>
+  </div>
+);
 const container = document.getElementById("root");
-ReactDOM.render(element, container);
+Didact.render(element, container);
