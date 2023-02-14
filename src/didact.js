@@ -1,3 +1,13 @@
+const Element = {
+  type: "h1",
+  props: {
+    title: "foo",
+    children: ["elementA", "elementB"],
+  },
+};
+/**
+ * 将jsx转换成函数调用，返回 Element
+ */
 function createElement(type, props, ...children) {
   return {
     type,
@@ -10,6 +20,11 @@ function createElement(type, props, ...children) {
   };
 }
 
+/**
+ * 创建文本节点
+ * @param {*} text
+ * @returns
+ */
 function createTextElement(text) {
   return {
     type: "TEXT_ELEMENT",
@@ -20,6 +35,11 @@ function createTextElement(text) {
   };
 }
 
+/**
+ * 根据 fiber 创建对应的 dom node
+ * @param {*} fiber
+ * @returns
+ */
 function createDom(fiber) {
   const dom =
     fiber.type == "TEXT_ELEMENT"
@@ -36,8 +56,15 @@ const isProperty = (key) => key !== "children" && !isEvent(key);
 const isNew = (prev, next) => (key) => prev[key] !== next[key];
 const isGone = (prev, next) => (key) => !(key in next);
 
+/**
+ * 比较新旧 fiber 的 props，移除或者更新
+ * 如果是 事件侦听器 更新，移除旧的添加新的事件
+ * @param {*} dom
+ * @param {*} prevProps
+ * @param {*} nextProps
+ */
 function updateDom(dom, prevProps, nextProps) {
-  //Remove old or changed event listeners
+  // Remove old or changed event listeners
   Object.keys(prevProps)
     .filter(isEvent)
     .filter((key) => !(key in nextProps) || isNew(prevProps, nextProps)(key))
@@ -72,6 +99,9 @@ function updateDom(dom, prevProps, nextProps) {
     });
 }
 
+/**
+ * 递归的将所有nodes插入dom
+ */
 function commitRoot() {
   deletions.forEach(commitWork);
   commitWork(wipRoot.child);
@@ -79,6 +109,11 @@ function commitRoot() {
   wipRoot = null;
 }
 
+/**
+ * 根据fiber执行dom操作
+ * @param {*} fiber
+ * @returns
+ */
 function commitWork(fiber) {
   if (!fiber) {
     return;
@@ -102,6 +137,12 @@ function commitWork(fiber) {
   commitWork(fiber.sibling);
 }
 
+/**
+ * 删除节点
+ * 兼容函数组件和非函数组件
+ * @param {*} fiber
+ * @param {*} domParent
+ */
 function commitDeletion(fiber, domParent) {
   if (fiber.dom) {
     domParent.removeChild(fiber.dom);
@@ -123,17 +164,24 @@ function render(element, container) {
 }
 
 let nextUnitOfWork = null;
+// last fiber tree we committed to the DOM
 let currentRoot = null;
 let wipRoot = null;
 let deletions = null;
 
+/**
+ * 当浏览器空闲时，触发回调
+ * @param {*} deadline
+ */
 function workLoop(deadline) {
   let shouldYield = false;
+  // 还有下一个工作单元且这一帧的剩余时间 >= 1
   while (nextUnitOfWork && !shouldYield) {
     nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
     shouldYield = deadline.timeRemaining() < 1;
   }
 
+  // 没有下一个工作单元即工作完成，将整个fiber树提交给DOM
   if (!nextUnitOfWork && wipRoot) {
     commitRoot();
   }
@@ -143,6 +191,11 @@ function workLoop(deadline) {
 
 requestIdleCallback(workLoop);
 
+/**
+ * 单个工作单元 执行函数
+ * @param {*} fiber
+ * @returns
+ */
 function performUnitOfWork(fiber) {
   const isFunctionComponent = fiber.type instanceof Function;
   if (isFunctionComponent) {
@@ -165,6 +218,10 @@ function performUnitOfWork(fiber) {
 let wipFiber = null;
 let hookIndex = null;
 
+/**
+ * 更新函数组件
+ * @param {*} fiber
+ */
 function updateFunctionComponent(fiber) {
   wipFiber = fiber;
   hookIndex = 0;
@@ -204,6 +261,10 @@ function useState(initial) {
   return [hook.state, setState];
 }
 
+/**
+ * 更新非函数组件
+ * @param {*} fiber
+ */
 function updateHostComponent(fiber) {
   if (!fiber.dom) {
     fiber.dom = createDom(fiber);
@@ -211,18 +272,27 @@ function updateHostComponent(fiber) {
   reconcileChildren(fiber, fiber.props.children);
 }
 
+/**
+ * 比较 oldFiber和 elements，看有什么变化，后续需要操作dom
+ * @param {*} wipFiber
+ * @param {*} elements
+ */
 function reconcileChildren(wipFiber, elements) {
   let index = 0;
   let oldFiber = wipFiber.alternate && wipFiber.alternate.child;
   let prevSibling = null;
 
   while (index < elements.length || oldFiber != null) {
+    // The element is the thing we want to render to the DOM and the oldFiber is what we rendered the last time.
+    // compare them use the type to see if there’s any change we need to apply to the DOM.
     const element = elements[index];
     let newFiber = null;
 
     const sameType = oldFiber && element && element.type == oldFiber.type;
 
+    // Here React also uses keys, that makes a better reconciliation
     if (sameType) {
+      // update the node
       newFiber = {
         type: oldFiber.type,
         props: element.props,
@@ -233,6 +303,7 @@ function reconcileChildren(wipFiber, elements) {
       };
     }
     if (element && !sameType) {
+      // add this node
       newFiber = {
         type: element.type,
         props: element.props,
@@ -243,7 +314,9 @@ function reconcileChildren(wipFiber, elements) {
       };
     }
     if (oldFiber && !sameType) {
+      // delete the oldFiber's node
       oldFiber.effectTag = "DELETION";
+      // 当我们将 fiber tree 提交到 DOM 时（commitRoot），我们会从wipRoot中进行，它没有oldFiber，所以将这类想要删除的oldFiber存起来
       deletions.push(oldFiber);
     }
 
